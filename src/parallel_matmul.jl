@@ -45,14 +45,6 @@ localize(L::SharedBilinearOperator) = localize(L.A)
 display(L::SharedBilinearOperator) = display(L.A)
 size(L::SharedBilinearOperator) = size(L.A)
 
-## Operator multiplication
-# we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally
-Ac_mul_B!(y::SharedArray, L::SharedBilinearOperator, x::SharedArray) = At_mul_B!(one(eltype(x)), L.A, x, zero(eltype(y)), y)
-Ac_mul_B(y::SharedArray, L::SharedBilinearOperator) = At_mul_B!(y, L, Base.shmem_fill(zero(eltype(L.A.nzval)),L.A.m,pids=L.pids))
-A_mul_B!(y::SharedArray, L::SharedBilinearOperator, x::SharedArray) = At_mul_B!(one(eltype(x)), L.AT, x, zero(eltype(y)), y)
-## XXX this doens't overload properly
-*(L::SharedBilinearOperator,x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(L.A.nzval)),L.A.m;pids=L.pids), L::SharedBilinearOperator, x::SharedArray)
-
 function share(a::Array;kwargs...)
     sh = SharedArray(typeof(a[1]),size(a);kwargs...)
     sh.s[:] = a[:]
@@ -121,7 +113,9 @@ function shspeye(T::Type, m::Integer, n::Integer)
     return SharedSparseMatrixCSC(m, n, colptr, rowval, nzval)
 end
 
-### Multiplication is only implemented for transpose (and real complement) for now
+### Multiplication
+
+## Shared sparse matrix transpose multiplication
 # y = A'*x
 function At_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray)
     A.n == length(y) || throw(DimensionMismatch(""))
@@ -131,14 +125,12 @@ function At_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta
     end
     y
 end
-# XXX At_mul_B is *returning* zero, although assignment works fine, ie x = A'*y displays all 0, but x later has correct value.
-# this makes localize(A)'*y different from A'*y
 At_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = At_mul_B!(one(eltype(x)), A, x, zero(eltype(y)), y)
 At_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = At_mul_B!(Base.shmem_fill(zero(eltype(A)),A.n), A, x)
 Ac_mul_B!{T<:Real}(y::SharedArray{T}, A::SharedSparseMatrixCSC{T}, x::SharedArray{T}) = At_mul_B!(y, A, x)
-Ac_mul_B{T<:Real}(A::SharedSparseMatrixCSC{T}, x::SharedArray{T}) = Ac_mul_B!(Base.shmem_fill(zero(eltype(A)),A.n), A, x)
+Ac_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = Ac_mul_B!(Base.shmem_fill(zero(eltype(A)),A.n), A, x)
 
-# XXX implement multiplication for SharedSparseMatrices
+# XXX implement multiplication directly for SharedSparseMatrices
 A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = At_mul_B!(y,transpose(A),x)
 A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
 *(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
@@ -157,5 +149,23 @@ function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, bet
         end
     end
 end
+
+## Shared sparse matrix multiplication by arbitrary vectors
+Ac_mul_B!(y::Vector, A::SharedSparseMatrixCSC, x::Vector) = Ac_mul_B!(share(y), A, share(x))
+Ac_mul_B(A::SharedSparseMatrixCSC, x::Vector) = Ac_mul_B(A, share(x))
+At_mul_B!(y, A::SharedSparseMatrixCSC, x::Vector) = At_mul_B!(share(y), A, share(x))
+At_mul_B(A::SharedSparseMatrixCSC, x) = At_mul_B(A, share(x))
+A_mul_B!(y::Vector, A::SharedSparseMatrixCSC, x::Vector) = A_mul_B!(share(y), A, share(x))
+*(A::SharedSparseMatrixCSC,x::Vector) = A_mul_B(A, share(x))
+
+## Operator multiplication
+# we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally
+# conjugation is not implemented for bilinear operators
+Ac_mul_B!(y, L::SharedBilinearOperator, x) = Ac_mul_B!(y, L.A, x)
+Ac_mul_B(L::SharedBilinearOperator, x) = Ac_mul_B(L.A, x)
+At_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.A, x)
+At_mul_B(L::SharedBilinearOperator, x) = At_mul_B(L.A, x)
+A_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.AT, x)
+*(L::SharedBilinearOperator,x) = At_mul_B(L.AT, x)
 
 end #module
