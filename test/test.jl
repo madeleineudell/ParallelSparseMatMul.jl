@@ -1,7 +1,8 @@
-using Base.Test
 addprocs(1)
-# @everywhere include("../src/parallel_matmul.jl")
+
+@everywhere require("../src/parallel_matmul.jl")
 @everywhere using ParallelSparseMatMul
+using Base.Test
 
 ### test matrix multiplication
 
@@ -14,7 +15,6 @@ x_out = copy(x)
 y_out = copy(y)
 
 S = localize(A);
-# these don't work b/c output is 0 even when assignment is correct
 y_out_loc = S*x
 x_out_loc = A'*y
 
@@ -27,6 +27,7 @@ y_out = L*x
 x_out = L'*y
 @test x_out_loc == x_out
 
+# these don't work yet b/c output is 0 even when assignment is correct
 @test y_out_loc == A*x
 @test x_out_loc == A'*y
 @test y_out_loc == L*x
