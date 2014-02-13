@@ -11,7 +11,7 @@ export
     SharedBilinearOperator, SharedSparseMatrixCSC, 
     share, display, localize, operator, 
     shspeye, shsprand, shsprandn,
-    A_mul_B, At_mul_B, Ac_mul_B, A_mul_B!, At_mul_B!, Ac_mul_B!
+    A_mul_B, At_mul_B, Ac_mul_B, A_mul_B!, At_mul_B!, Ac_mul_B!,*
 
 type SharedSparseMatrixCSC{Tv,Ti<:Integer} <: AbstractSparseMatrix{Tv,Ti}
     m::Int
@@ -21,7 +21,7 @@ type SharedSparseMatrixCSC{Tv,Ti<:Integer} <: AbstractSparseMatrix{Tv,Ti}
     nzval::SharedArray{Tv,1}
     pids::Vector{Int}
 end
-SharedSparseMatrixCSC(m,n,colptr,rowval,nzval;pids=procs()) = SharedSparseMatrixCSC(m,n,colptr,rowval,nzval,pids)
+SharedSparseMatrixCSC(m,n,colptr,rowval,nzval;pids=workers()) = SharedSparseMatrixCSC(m,n,colptr,rowval,nzval,pids)
 localize(A::SharedSparseMatrixCSC) = SparseMatrixCSC(A.m,A.n,A.colptr.s,A.rowval.s,A.nzval.s)
 display(A::SharedSparseMatrixCSC) = display(localize(A))
 size(A::SharedSparseMatrixCSC) = (A.m,A.n)
@@ -48,7 +48,7 @@ function share(a::Array;kwargs...)
     return sh
 end
 share(A::SparseMatrixCSC,pids::Vector{Int}) = SharedSparseMatrixCSC(A.m,A.n,share(A.colptr,pids=pids),share(A.rowval,pids=pids),share(A.nzval,pids=pids),pids)
-share(A::SparseMatrixCSC) = share(A::SparseMatrixCSC,procs())
+share(A::SparseMatrixCSC) = share(A::SparseMatrixCSC,workers())
 
 # For now, we transpose in serial
 function ctranspose(A::SharedSparseMatrixCSC)
@@ -117,7 +117,8 @@ end
 function At_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray)
     A.n == length(y) || throw(DimensionMismatch(""))
     A.m == length(x) || throw(DimensionMismatch(""))
-    @parallel for col = 1:A.n
+    # the variable finished calls wait on the remote ref, ensuring all processes return before we proceed
+    finished = @parallel (+) for col = 1:A.n
         col_mul_B!(alpha, A, x, beta, y, [col])
     end
     y
@@ -145,6 +146,7 @@ function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, bet
             y[i] += alpha*tmp
         end
     end
+    return 1 # finished
 end
 
 ## Shared sparse matrix multiplication by arbitrary vectors

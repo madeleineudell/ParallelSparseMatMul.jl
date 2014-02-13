@@ -1,12 +1,12 @@
 addprocs(3)
 
-@everywhere require("../src/parallel_matmul.jl")
-@everywhere using ParallelSparseMatMul
 using Base.Test
+@everywhere require("../src/ParallelSparseMatMul.jl")
+@everywhere using ParallelSparseMatMul
 
 ### test matrix multiplication
 
-m = 100;  n = 10; p = .1
+m = 10;  n = 8; p = .1
 A = shsprand(m,n,p)
 L = operator(A);
 x = Base.shmem_rand(n);
@@ -16,7 +16,7 @@ y_out = copy(y)
 
 S = localize(A);
 y_out_loc = S*x
-x_out_loc = A'*y
+x_out_loc = S'*y
 
 y_out = A*x
 @test y_out_loc == y_out
@@ -35,7 +35,8 @@ x_out = L'*y
 
 ## test multiplication by vectors
 xv = x.s; yv = y.s
-@test 
+@test L*xv == L*x
+@test L'*yv == L'*y
 
 ### test matrix creation and localization
 @test localize(share(S)) == S
@@ -45,5 +46,5 @@ Aeye = shspeye(Float64,m,n)
 
 ### test indexing
 i = min(n,m) - 3
-@test A[i,i] == 1 
-@test A[i,j] == 0
+@test Aeye[i,i] == 1 
+@test Aeye[i,i+1] == 0

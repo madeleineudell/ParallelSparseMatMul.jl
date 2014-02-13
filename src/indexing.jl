@@ -1,7 +1,11 @@
 #getindex(A::SharedSparseMatrixCSC, i::Integer) = getindex(A, ind2sub(size(A),i))
+
+import Base.getindex
+export getindex, getindex_cols
+
 getindex(A::SharedSparseMatrixCSC, I::(Integer,Integer)) = getindex(A, I[1], I[2])
 
-function getindex{T}(A::SharedSparseMatrixCSC{T}, i0::Integer, i1::Integer)
+function getindex{T}(A::SharedSparseMatrixCSC{T}, i0::Int, i1::Int)
     if !(1 <= i0 <= A.m && 1 <= i1 <= A.n); throw(BoundsError()); end
     first = A.colptr[i1]
     last = A.colptr[i1+1]-1
@@ -19,10 +23,9 @@ function getindex{T}(A::SharedSparseMatrixCSC{T}, i0::Integer, i1::Integer)
     return zero(T)
 end
 
-getindex{T<:Integer}(A::SharedSparseMatrixCSC, I::AbstractVector{T}, j::Integer) = getindex(A,I,[j])
-getindex{T<:Integer}(A::SharedSparseMatrixCSC, i::Integer, J::AbstractVector{T}) = getindex(A,[i],J)
-
 ### Indexing sets of columns and rows --- not yet fully implemented. One template example is below
+#getindex{T<:Integer}(A::SharedSparseMatrixCSC, I::AbstractVector{T}, j::Integer) = getindex(A,I,[j])
+#getindex{T<:Integer}(A::SharedSparseMatrixCSC, i::Integer, J::AbstractVector{T}) = getindex(A,[i],J)
 
 function getindex_cols{Tv,Ti}(A::SharedSparseMatrixCSC{Tv,Ti}, J::AbstractVector)
 
