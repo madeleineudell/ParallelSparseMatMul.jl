@@ -1,4 +1,4 @@
-addprocs(1)
+addprocs(3)
 
 @everywhere require("../src/parallel_matmul.jl")
 @everywhere using ParallelSparseMatMul
@@ -27,13 +27,15 @@ y_out = L*x
 x_out = L'*y
 @test x_out_loc == x_out
 
-# these don't work yet b/c output is 0 even when assignment is correct
-@test y_out_loc == A*x
-@test x_out_loc == A'*y
+# these don't work yet - output is 0 even when assignment is correct
 @test y_out_loc == L*x
 @test x_out_loc == L'*y
+@test y_out_loc == A*x
+@test x_out_loc == A'*y
 
 ## test multiplication by vectors
+xv = x.s; yv = y.s
+@test 
 
 ### test matrix creation and localization
 @test localize(share(S)) == S

@@ -20,10 +20,10 @@ Before you begin, initialize all the processes you want to participate in multip
 You'll suffer decreased performance if you add more processes 
 than you have hyperthreads on your shared-memory computer.
 
-	addprocs(5)
+	addprocs(3)
 
 Create a shared sparse matrix by sharing a sparse matrix.
-For example, if `A` is a `SparseMatrixCSC`, then you can share it by calling
+For example, if `typeof(A) == SparseMatrixCSC`, then you can share it by calling
 
 	S = share(A)
 
