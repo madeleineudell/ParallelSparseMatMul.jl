@@ -33,6 +33,8 @@ x_out = L'*y
 @test y_out_loc == L*x
 @test x_out_loc == L'*y
 
+## test multiplication by vectors
+
 ### test matrix creation and localization
 @test localize(share(S)) == S
 
