@@ -1,5 +1,3 @@
-module ParallelSparseMatMul
-
 ### to do:
 # implement A_mul_B, not just At_mul_B, for sharedsparsematrix
 # implement A_mul_B* with normal vectors, not just shared arrays, for sharedsparsematrix
@@ -28,7 +26,6 @@ localize(A::SharedSparseMatrixCSC) = SparseMatrixCSC(A.m,A.n,A.colptr.s,A.rowval
 display(A::SharedSparseMatrixCSC) = display(localize(A))
 size(A::SharedSparseMatrixCSC) = (A.m,A.n)
 nfilled(A::SharedSparseMatrixCSC) = length(A.nzval)
-include("indexing.jl")
 
 type SharedBilinearOperator{Tv,Ti<:Integer}
     m::Int
@@ -167,5 +164,3 @@ At_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.A, x)
 At_mul_B(L::SharedBilinearOperator, x) = At_mul_B(L.A, x)
 A_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.AT, x)
 *(L::SharedBilinearOperator,x) = At_mul_B(L.AT, x)
-
-end #module
