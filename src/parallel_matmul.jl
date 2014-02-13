@@ -109,6 +109,7 @@ function shspeye(T::Type, m::Integer, n::Integer)
     nzval  = Base.shmem_fill(one(T),x)
     return SharedSparseMatrixCSC(m, n, colptr, rowval, nzval)
 end
+shspeye(n::Integer) = shspeye(Float64,n,n)
 
 ### Multiplication
 
