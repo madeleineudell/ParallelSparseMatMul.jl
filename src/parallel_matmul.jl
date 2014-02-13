@@ -9,8 +9,7 @@ import
 
 export
     SharedBilinearOperator, SharedSparseMatrixCSC, 
-    share, display, localize, operator, 
-    shspeye, shsprand, shsprandn,
+    share, display, localize, operator, nfilled, size
     A_mul_B, At_mul_B, Ac_mul_B, A_mul_B!, At_mul_B!, Ac_mul_B!,*
 
 type SharedSparseMatrixCSC{Tv,Ti<:Integer} <: AbstractSparseMatrix{Tv,Ti}
@@ -19,7 +18,7 @@ type SharedSparseMatrixCSC{Tv,Ti<:Integer} <: AbstractSparseMatrix{Tv,Ti}
     colptr::SharedArray{Ti,1}
     rowval::SharedArray{Ti,1}
     nzval::SharedArray{Tv,1}
-    pids::Vector{Int}
+    pids::AbstractVector{Int}
 end
 SharedSparseMatrixCSC(m,n,colptr,rowval,nzval;pids=workers()) = SharedSparseMatrixCSC(m,n,colptr,rowval,nzval,pids)
 localize(A::SharedSparseMatrixCSC) = SparseMatrixCSC(A.m,A.n,A.colptr.s,A.rowval.s,A.nzval.s)
@@ -32,7 +31,7 @@ type SharedBilinearOperator{Tv,Ti<:Integer}
     n::Int
     A::SharedSparseMatrixCSC{Tv,Ti}
     AT::SharedSparseMatrixCSC{Tv,Ti}
-    pids::Vector{Int}
+    pids::AbstractVector{Int}
 end
 operator(A::SparseMatrixCSC,pids) = SharedBilinearOperator(A.m,A.n,share(A),share(A'),pids)
 operator(A::SparseMatrixCSC) = operator(A::SparseMatrixCSC,pids)
@@ -47,7 +46,7 @@ function share(a::Array;kwargs...)
     sh.s[:] = a[:]
     return sh
 end
-share(A::SparseMatrixCSC,pids::Vector{Int}) = SharedSparseMatrixCSC(A.m,A.n,share(A.colptr,pids=pids),share(A.rowval,pids=pids),share(A.nzval,pids=pids),pids)
+share(A::SparseMatrixCSC,pids::AbstractVector{Int}) = SharedSparseMatrixCSC(A.m,A.n,share(A.colptr,pids=pids),share(A.rowval,pids=pids),share(A.nzval,pids=pids),pids)
 share(A::SparseMatrixCSC) = share(A::SparseMatrixCSC,workers())
 
 # For now, we transpose in serial
@@ -63,54 +62,6 @@ function transpose(A::SharedSparseMatrixCSC)
     return share(ST,A.pids)
 end
 
-### Initialization functions
-# Todo allow initialization on only some of the participating workers (ie SharedSparse...(...; pids=pids))
-function shsprand(m,n,p; kwargs...)
-    colptr = SharedArray(Int64,n+1; kwargs...)
-    colptr[1] = 1
-    for i=2:n+1
-        inc = round(p*m+sqrt(m*p*(1-p))*randn())
-        colptr[i] = colptr[i-1]+max(1,inc)
-    end
-    nnz = colptr[end]-1
-    nzval = Base.shmem_rand(nnz; kwargs...)
-    # multiplication will go faster if you sort these within each column...
-    rowval = shmem_randsample(nnz,1,m;sorted_within=colptr, kwargs...) 
-    return SharedSparseMatrixCSC(m,n,colptr,rowval,nzval)
-end
-
-function shsprandn(m,n,p; kwargs...)
-    colptr = SharedArray(Int64,n+1; kwargs...)
-    colptr[1] = 1
-    for i=2:n+1
-        inc = round(p*m+sqrt(m*p*(1-p))*randn())
-        colptr[i] = colptr[i-1]+max(1,inc)
-    end
-    nnz = colptr[end]-1
-    nzval = Base.shmem_randn(nnz; kwargs...)
-    # multiplication will go faster if you sort these within each column...
-    rowval = shmem_randsample(nnz,1,m;sorted_within=colptr, kwargs...) 
-    return SharedSparseMatrixCSC(m,n,colptr,rowval,nzval)
-end
-
-function shmem_randsample(n,minval,maxval;sorted_within=[], kwargs...)
-    out = Base.shmem_rand(minval:maxval,n; kwargs...)
-    # XXX do this in parallel ONLY ON PARTICIPATING WORKERS
-    @parallel for i=2:length(sorted_within)
-        out[sorted_within[i-1]:sorted_within[i]-1] = sort(out[sorted_within[i-1]:sorted_within[i]-1])
-    end
-    return out
-end
-
-function shspeye(T::Type, m::Integer, n::Integer)
-    x = min(m,n)
-    rowval = share([1:x])
-    colptr = share([rowval, fill(int(x+1), n+1-x)])
-    nzval  = Base.shmem_fill(one(T),x)
-    return SharedSparseMatrixCSC(m, n, colptr, rowval, nzval)
-end
-shspeye(n::Integer) = shspeye(Float64,n,n)
-
 ### Multiplication
 
 ## Shared sparse matrix transpose multiplication
@@ -120,7 +71,7 @@ function At_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta
     A.m == length(x) || throw(DimensionMismatch(""))
     # the variable finished calls wait on the remote ref, ensuring all processes return before we proceed
     finished = @parallel (+) for col = 1:A.n
-        col_mul_B!(alpha, A, x, beta, y, [col])
+        col_t_mul_B!(alpha, A, x, beta, y, [col])
     end
     y
 end
@@ -134,7 +85,7 @@ A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = At_mul_B!(y
 A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
 *(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
 
-function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
+function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
     nzv = A.nzval
     rv = A.rowval
     @inbounds begin
@@ -151,12 +102,12 @@ function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, bet
 end
 
 ## Shared sparse matrix multiplication by arbitrary vectors
-Ac_mul_B!(y::Vector, A::SharedSparseMatrixCSC, x::Vector) = Ac_mul_B!(share(y), A, share(x))
-Ac_mul_B(A::SharedSparseMatrixCSC, x::Vector) = Ac_mul_B(A, share(x))
-At_mul_B!(y, A::SharedSparseMatrixCSC, x::Vector) = At_mul_B!(share(y), A, share(x))
+Ac_mul_B!(y::AbstractVector, A::SharedSparseMatrixCSC, x::AbstractVector) = Ac_mul_B!(share(y), A, share(x))
+Ac_mul_B(A::SharedSparseMatrixCSC, x::AbstractVector) = Ac_mul_B(A, share(x))
+At_mul_B!(y, A::SharedSparseMatrixCSC, x::AbstractVector) = At_mul_B!(share(y), A, share(x))
 At_mul_B(A::SharedSparseMatrixCSC, x) = At_mul_B(A, share(x))
-A_mul_B!(y::Vector, A::SharedSparseMatrixCSC, x::Vector) = A_mul_B!(share(y), A, share(x))
-*(A::SharedSparseMatrixCSC,x::Vector) = A_mul_B(A, share(x))
+A_mul_B!(y::AbstractVector, A::SharedSparseMatrixCSC, x::AbstractVector) = A_mul_B!(share(y), A, share(x))
+*(A::SharedSparseMatrixCSC,x::AbstractVector) = A_mul_B(A, share(x))
 
 ## Operator multiplication
 # we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally
