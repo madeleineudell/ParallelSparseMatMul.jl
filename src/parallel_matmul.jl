@@ -71,21 +71,27 @@ function A_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta:
     A.n == length(x) || throw(DimensionMismatch(""))
     A.m == length(y) || throw(DimensionMismatch(""))
     @parallel for i = 1:A.m; y[i] *= beta; end
-    nzv = A.nzval
-    rv = A.rowval
     # the variable finished calls wait on the remote ref, ensuring all processes return before we proceed
     finished = @parallel (+) for col = 1 : A.n
-        alphax = alpha*x[col]
-        @inbounds for k = A.colptr[col] : (A.colptr[col+1]-1)
-            y[rv[k]] += nzv[k]*alphax
-        end
-        1
+        col_t_mul_B!(alpha, A, x, beta, y, [col])
     end
     y
 end
 A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(one(eltype(x)), A, x, zero(eltype(y)), y)
 A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
 *(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
+
+function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
+    nzv = A.nzval
+    rv = A.rowval
+    for col in col_chunk
+        alphax = alpha*x[col]
+        @inbounds for k = A.colptr[col] : (A.colptr[col+1]-1)
+            y[rv[k]] += nzv[k]*alphax
+        end
+    end
+    return 1
+end
 
 ## Shared sparse matrix transpose multiplication
 # y = alpha*A'*x + beta*y
