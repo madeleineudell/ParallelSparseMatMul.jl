@@ -41,7 +41,7 @@ localize(L::SharedBilinearOperator) = localize(L.A)
 display(L::SharedBilinearOperator) = display(L.A)
 size(L::SharedBilinearOperator) = size(L.A)
 
-function share(a::Array;kwargs...)
+function share(a::AbstractArray;kwargs...)
     sh = SharedArray(typeof(a[1]),size(a);kwargs...)
     sh.s[:] = a[:]
     return sh
@@ -73,14 +73,19 @@ function A_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta:
     @parallel for i = 1:A.m; y[i] *= beta; end
     nzv = A.nzval
     rv = A.rowval
-    @parallel for col = 1 : A.n
-        αx = α*x[col]
+    # the variable finished calls wait on the remote ref, ensuring all processes return before we proceed
+    finished = @parallel (+) for col = 1 : A.n
+        alphax = alpha*x[col]
         @inbounds for k = A.colptr[col] : (A.colptr[col+1]-1)
-            y[rv[k]] += nzv[k]*αx
+            y[rv[k]] += nzv[k]*alphax
         end
+        1
     end
     y
 end
+A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(one(eltype(x)), A, x, zero(eltype(y)), y)
+A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
+*(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
 
 ## Shared sparse matrix transpose multiplication
 # y = alpha*A'*x + beta*y
@@ -97,11 +102,6 @@ At_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = At_mul_B!(
 At_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = At_mul_B!(Base.shmem_fill(zero(eltype(A)),A.n), A, x)
 Ac_mul_B!{T<:Real}(y::SharedArray{T}, A::SharedSparseMatrixCSC{T}, x::SharedArray{T}) = At_mul_B!(y, A, x)
 Ac_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = Ac_mul_B!(Base.shmem_fill(zero(eltype(A)),A.n), A, x)
-
-# XXX implement multiplication directly for SharedSparseMatrices
-A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = At_mul_B!(y,transpose(A),x)
-A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
-*(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
 
 function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
     nzv = A.nzval

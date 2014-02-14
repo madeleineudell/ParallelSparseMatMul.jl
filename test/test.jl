@@ -42,8 +42,8 @@ xv = x.s; yv = y.s
 @test localize(share(S)) == S
 
 Aeye = shspeye(Float64,m,n)
-Aeye = shspeye(max(m,n))
 @test localize(Aeye) == speye(Float64,m,n)
+Aeye = shspeye(max(m,n))
 
 ### test indexing
 i = max(n,m) - 2
