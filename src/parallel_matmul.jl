@@ -73,7 +73,7 @@ function A_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta:
     @parallel for i = 1:A.m; y[i] *= beta; end
     # the variable finished calls wait on the remote ref, ensuring all processes return before we proceed
     finished = @parallel (+) for col = 1 : A.n
-        col_t_mul_B!(alpha, A, x, beta, y, [col])
+        col_mul_B!(alpha, A, x, beta, y, [col])
     end
     y
 end
@@ -81,7 +81,7 @@ A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(on
 A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
 *(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
 
-function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
+function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
     nzv = A.nzval
     rv = A.rowval
     for col in col_chunk
@@ -130,8 +130,6 @@ Ac_mul_B!(y::AbstractVector, A::SharedSparseMatrixCSC, x::AbstractVector) = Ac_m
 Ac_mul_B(A::SharedSparseMatrixCSC, x::AbstractVector) = Ac_mul_B(A, share(x))
 At_mul_B!(y, A::SharedSparseMatrixCSC, x::AbstractVector) = At_mul_B!(share(y), A, share(x))
 At_mul_B(A::SharedSparseMatrixCSC, x) = At_mul_B(A, share(x))
-A_mul_B!(y::AbstractVector, A::SharedSparseMatrixCSC, x::AbstractVector) = A_mul_B!(share(y), A, share(x))
-*(A::SharedSparseMatrixCSC,x::AbstractVector) = A_mul_B(A, share(x))
 
 ## Operator multiplication
 # we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally

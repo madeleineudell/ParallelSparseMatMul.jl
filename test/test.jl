@@ -6,7 +6,7 @@ using Base.Test
 
 ### test matrix multiplication
 
-m = 100;  n = 200; p = .01
+m = 10;  n = 20; p = .01
 A = shsprand(m,n,p)
 L = operator(A);
 x = Base.shmem_rand(n);
