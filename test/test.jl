@@ -6,7 +6,7 @@ using Base.Test
 
 ### test matrix multiplication
 
-m = 10;  n = 8; p = .1
+m = 100;  n = 200; p = .01
 A = shsprand(m,n,p)
 L = operator(A);
 x = Base.shmem_rand(n);
@@ -26,8 +26,6 @@ y_out = L*x
 @test y_out_loc == y_out
 x_out = L'*y
 @test x_out_loc == x_out
-
-# these don't work yet - output is 0 even when assignment is correct
 @test y_out_loc == L*x
 @test x_out_loc == L'*y
 @test y_out_loc == A*x
