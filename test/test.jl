@@ -24,10 +24,7 @@ y_out = A*x
 @test norm(y_out_loc - y_out) < TOL
 x_out = A'*y
 @test norm(x_out_loc - x_out) < TOL
-for i=1:10
-	y_out = L*x
-	println(norm(y_out_loc - y_out))
-end
+y_out = L*x
 @test norm(y_out_loc - y_out) < TOL
 x_out = L'*y
 @test norm(x_out_loc - x_out) < TOL

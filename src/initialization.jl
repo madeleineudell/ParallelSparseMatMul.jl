@@ -1,7 +1,8 @@
 export shspeye, shsprand, shsprandn
 
 ### Initialization functions
-# Todo allow initialization on only some of the participating workers (ie SharedSparse...(...; pids=pids))
+# Todo allow initialization on only some of the participating workers (ie SharedSparse...(...; pids=pids)), when @parallel allows arguments to run on only a subset of workers
+# XXX verify entries are sorted correctly, so A'' == A
 function shsprand(m,n,p; kwargs...)
     colptr = SharedArray(Int64,n+1; kwargs...)
     colptr[1] = 1
