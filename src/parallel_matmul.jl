@@ -64,8 +64,26 @@ end
 
 ### Multiplication
 
+# Shared sparse matrix multiplication
+# only works if sharedarrays lock on writes, but they do.
+# beta*y + alpha*A*x
+function A_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray)
+    A.n == length(x) || throw(DimensionMismatch(""))
+    A.m == length(y) || throw(DimensionMismatch(""))
+    @parallel for i = 1:A.m; y[i] *= beta; end
+    nzv = A.nzval
+    rv = A.rowval
+    @parallel for col = 1 : A.n
+        αx = α*x[col]
+        @inbounds for k = A.colptr[col] : (A.colptr[col+1]-1)
+            y[rv[k]] += nzv[k]*αx
+        end
+    end
+    y
+end
+
 ## Shared sparse matrix transpose multiplication
-# y = A'*x
+# y = alpha*A'*x + beta*y
 function At_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray)
     A.n == length(y) || throw(DimensionMismatch(""))
     A.m == length(x) || throw(DimensionMismatch(""))
