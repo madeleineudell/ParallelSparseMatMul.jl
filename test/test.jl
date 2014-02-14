@@ -8,7 +8,7 @@ using Base.Test
 ### test matrix multiplication
 
 m = 100;  n = 200; p = .01
-A = shsprand(m,n,p)
+A = share(sprand(m,n,p))
 L = operator(A);
 x = Base.shmem_rand(n);
 y = Base.shmem_rand(m);
@@ -18,12 +18,16 @@ y_out = copy(y)
 S = localize(A);
 y_out_loc = S*x
 x_out_loc = S'*y
+@test sum(abs(localize(L.AT) - localize(A')))<TOL
 
 y_out = A*x
 @test norm(y_out_loc - y_out) < TOL
 x_out = A'*y
 @test norm(x_out_loc - x_out) < TOL
-y_out = L*x
+for i=1:10
+	y_out = L*x
+	println(norm(y_out_loc - y_out))
+end
 @test norm(y_out_loc - y_out) < TOL
 x_out = L'*y
 @test norm(x_out_loc - x_out) < TOL
@@ -40,6 +44,7 @@ xv = x.s; yv = y.s
 ### test matrix creation and localization
 @test localize(share(S)) == S
 
+A = shsprand(m,n,p)
 Aeye = shspeye(Float64,m,n)
 @test localize(Aeye) == speye(Float64,m,n)
 Aeye = shspeye(max(m,n))
