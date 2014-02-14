@@ -3,7 +3,7 @@
 [![Build Status](https://travis-ci.org/madeleineudell/ParallelSparseMatMul.jl.png)](https://travis-ci.org/madeleineudell/ParallelSparseMatMul.jl)
 
 A Julia library for parallel sparse matrix multiplication using shared memory.
-This library implements SharedSparseMatrixCSC and Shared BilinearOperator types
+This library implements SharedSparseMatrixCSC and SharedBilinearOperator types
 to make it easy to multiply by sparse matrices in parallel on shared memory systems.
 
 Installation
@@ -65,3 +65,7 @@ by a fixed matrix and its transpose.
     # multiplication by L' should be faster than multiplication by A'
     y = L*x 
     x = L'*y
+
+The command `L=operator(A)` forms and stores `A'`.
+This allows multiplication by `A` to be as fast as multiplication by `A'`,
+at the cost of doubling the storage requirements.
