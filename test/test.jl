@@ -1,4 +1,5 @@
 addprocs(3)
+TOL = 1E-14
 
 using Base.Test
 @everywhere require("src/ParallelSparseMatMul.jl")
@@ -6,7 +7,7 @@ using Base.Test
 
 ### test matrix multiplication
 
-m = 10;  n = 20; p = .01
+m = 100;  n = 200; p = .01
 A = shsprand(m,n,p)
 L = operator(A);
 x = Base.shmem_rand(n);
@@ -19,22 +20,22 @@ y_out_loc = S*x
 x_out_loc = S'*y
 
 y_out = A*x
-@test y_out_loc == y_out
+@test norm(y_out_loc - y_out) < TOL
 x_out = A'*y
-@test x_out_loc == x_out
+@test norm(x_out_loc - x_out) < TOL
 y_out = L*x
-@test y_out_loc == y_out
+@test norm(y_out_loc - y_out) < TOL
 x_out = L'*y
-@test x_out_loc == x_out
-@test y_out_loc == L*x
-@test x_out_loc == L'*y
-@test y_out_loc == A*x
-@test x_out_loc == A'*y
+@test norm(x_out_loc - x_out) < TOL
+@test norm(y_out_loc - L*x) < TOL
+@test norm(x_out_loc - L'*y) < TOL
+@test norm(y_out_loc - A*x) < TOL
+@test norm(x_out_loc - A'*y) < TOL
 
 ## test multiplication by vectors
 xv = x.s; yv = y.s
-@test L*xv == L*x
-@test L'*yv == L'*y
+@test norm(L*xv - L*x) < TOL
+@test norm(L'*yv - L'*y) < TOL
 
 ### test matrix creation and localization
 @test localize(share(S)) == S
