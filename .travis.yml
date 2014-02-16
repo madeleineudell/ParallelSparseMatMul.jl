@@ -14,4 +14,5 @@ before_install:
 script:
   - julia -e 'Pkg.init(); run(`ln -s $(pwd()) $(Pkg.dir("ParallelSparseMatMul"))`); Pkg.pin("ParallelSparseMatMul"); Pkg.resolve()'
   - julia -e 'using ParallelSparseMatMul; @assert isdefined(:ParallelSparseMatMul); @assert typeof(ParallelSparseMatMul) === Module'
+  - sudo rm -rf /dev/shm && sudo ln -s /run/shm /dev/shm
   - julia test/test.jl

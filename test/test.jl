@@ -1,14 +1,17 @@
 addprocs(3)
-TOL = 1E-14
 
 using Base.Test
 @everywhere require("src/ParallelSparseMatMul.jl")
 @everywhere using ParallelSparseMatMul
 
 ### test matrix multiplication
+# fails on travis CI test; the internet suggests adding the line
+# - sudo rm -rf /dev/shm && sudo ln -s /run/shm /dev/shm
+# before calling julia test/test.jl
 
 m = 100;  n = 200; p = .01
-A = share(sprand(m,n,p))
+TOL = (1E-15)*m*n*p
+A = shsprand(m,n,p)
 L = operator(A);
 x = Base.shmem_rand(n);
 y = Base.shmem_rand(m);
@@ -42,6 +45,7 @@ xv = x.s; yv = y.s
 @test localize(share(S)) == S
 
 A = shsprand(m,n,p)
+A = shsprandn(m,n,p)
 Aeye = shspeye(Float64,m,n)
 @test localize(Aeye) == speye(Float64,m,n)
 Aeye = shspeye(max(m,n))

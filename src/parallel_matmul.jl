@@ -35,7 +35,7 @@ type SharedBilinearOperator{Tv,Ti<:Integer}
 end
 operator(A::SparseMatrixCSC,pids) = SharedBilinearOperator(A.m,A.n,share(A),share(A'),pids)
 operator(A::SparseMatrixCSC) = operator(A::SparseMatrixCSC,pids)
-operator(A::SharedSparseMatrixCSC) = SharedBilinearOperator(A.m,A.n,A,ctranspose(A),A.pids)
+operator(A::SharedSparseMatrixCSC) = SharedBilinearOperator(A.m,A.n,A,A',A.pids)
 ctranspose(L::SharedBilinearOperator) = SharedBilinearOperator(L.n,L.m,L.AT,L.A,L.pids)
 localize(L::SharedBilinearOperator) = localize(L.A)
 display(L::SharedBilinearOperator) = display(L.A)
