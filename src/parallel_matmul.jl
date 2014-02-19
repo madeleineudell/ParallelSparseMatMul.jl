@@ -34,12 +34,13 @@ type SharedBilinearOperator{Tv,Ti<:Integer}
     pids::AbstractVector{Int}
 end
 operator(A::SparseMatrixCSC,pids) = SharedBilinearOperator(A.m,A.n,share(A),share(A'),pids)
-operator(A::SparseMatrixCSC) = operator(A::SparseMatrixCSC,pids)
+operator(A::SparseMatrixCSC) = operator(A::SparseMatrixCSC,workers())
 operator(A::SharedSparseMatrixCSC) = SharedBilinearOperator(A.m,A.n,A,A',A.pids)
 ctranspose(L::SharedBilinearOperator) = SharedBilinearOperator(L.n,L.m,L.AT,L.A,L.pids)
 localize(L::SharedBilinearOperator) = localize(L.A)
 display(L::SharedBilinearOperator) = display(L.A)
 size(L::SharedBilinearOperator) = size(L.A)
+size(L::SharedBilinearOperator,i::Int) = size(L.A)[i]
 
 function share(a::AbstractArray;kwargs...)
     sh = SharedArray(typeof(a[1]),size(a);kwargs...)
@@ -126,10 +127,12 @@ function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, b
 end
 
 ## Shared sparse matrix multiplication by arbitrary vectors
-Ac_mul_B!(y::AbstractVector, A::SharedSparseMatrixCSC, x::AbstractVector) = Ac_mul_B!(share(y), A, share(x))
+Ac_mul_B!(y::AbstractVector, A::SharedSparseMatrixCSC, x::AbstractVector) = (y[:] = Ac_mul_B(A, share(x)))
 Ac_mul_B(A::SharedSparseMatrixCSC, x::AbstractVector) = Ac_mul_B(A, share(x))
-At_mul_B!(y, A::SharedSparseMatrixCSC, x::AbstractVector) = At_mul_B!(share(y), A, share(x))
-At_mul_B(A::SharedSparseMatrixCSC, x) = At_mul_B(A, share(x))
+At_mul_B!(y, A::SharedSparseMatrixCSC, x::AbstractVector) = (y[:] = At_mul_B(A, share(x)))
+At_mul_B(A::SharedSparseMatrixCSC, x::AbstractVector) = At_mul_B(A, share(x))
+A_mul_B!(y::AbstractVector,A::SharedSparseMatrixCSC, x::AbstractVector) = (y[:] = A_mul_B(A, share(x)))
+*(A::SharedSparseMatrixCSC, x::AbstractVector) = *(A, share(x))
 
 ## Operator multiplication
 # we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally

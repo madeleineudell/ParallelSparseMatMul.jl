@@ -12,6 +12,8 @@ using Base.Test
 m = 100;  n = 200; p = .01
 TOL = (1E-15)*m*n*p
 A = shsprand(m,n,p)
+@test size(A) == (m,n)
+@test size(A,1) == m
 L = operator(A);
 x = Base.shmem_rand(n);
 y = Base.shmem_rand(m);
