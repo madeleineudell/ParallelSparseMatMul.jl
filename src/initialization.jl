@@ -26,7 +26,6 @@ function shsprandn(m,n,p; kwargs...)
     end
     nnz = colptr[end]-1
     nzval = Base.shmem_randn(nnz; kwargs...)
-    # multiplication will go faster if you sort these within each column...
     rowval = shmem_randsample(nnz,1,m;sorted_within=colptr, kwargs...) 
     return SharedSparseMatrixCSC(m,n,colptr,rowval,nzval)
 end

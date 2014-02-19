@@ -137,9 +137,12 @@ A_mul_B!(y::AbstractVector,A::SharedSparseMatrixCSC, x::AbstractVector) = (y[:] 
 ## Operator multiplication
 # we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally
 # conjugation is not implemented for bilinear operators
+Ac_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = Ac_mul_B!(alpha, L.A, x, beta, y) 
 Ac_mul_B!(y, L::SharedBilinearOperator, x) = Ac_mul_B!(y, L.A, x)
 Ac_mul_B(L::SharedBilinearOperator, x) = Ac_mul_B(L.A, x)
+At_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.A, x, beta, y) 
 At_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.A, x)
 At_mul_B(L::SharedBilinearOperator, x) = At_mul_B(L.A, x)
+A_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.AT, x, beta, y) 
 A_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.AT, x)
 *(L::SharedBilinearOperator,x) = At_mul_B(L.AT, x)
