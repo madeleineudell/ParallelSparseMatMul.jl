@@ -83,14 +83,12 @@ A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(on
 A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
 *(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
 
-function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
+function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col::Integer)
     nzv = A.nzval
     rv = A.rowval
-    for col in col_chunk
-        alphax = alpha*x[col]
-        @inbounds for k = A.colptr[col] : (A.colptr[col+1]-1)
-            y[rv[k]] += nzv[k]*alphax
-        end
+    alphax = alpha*x[col]
+    @inbounds for k = A.colptr[col] : (A.colptr[col+1]-1)
+        y[rv[k]] += nzv[k]*alphax
     end
     return 1
 end
@@ -122,23 +120,6 @@ function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, b
                 tmp += nzv[j]*x[rv[j]]
             end
             y[i] += alpha*tmp
-    end
-    return 1 # finished
-end
-
-function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
-    nzv = A.nzval
-    rv = A.rowval
-    zeroy = zero(eltype(y))
-    @inbounds begin
-        for i in col_chunk
-            y[i] *= beta
-            tmp = zeroy
-            for j = A.colptr[i] : (A.colptr[i+1]-1)
-                tmp += nzv[j]*x[rv[j]]
-            end
-            y[i] += alpha*tmp
-        end
     end
     return 1 # finished
 end
