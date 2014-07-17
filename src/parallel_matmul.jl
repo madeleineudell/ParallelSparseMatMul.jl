@@ -24,6 +24,7 @@ SharedSparseMatrixCSC(m,n,colptr,rowval,nzval;pids=workers()) = SharedSparseMatr
 localize(A::SharedSparseMatrixCSC) = SparseMatrixCSC(A.m,A.n,A.colptr.s,A.rowval.s,A.nzval.s)
 display(A::SharedSparseMatrixCSC) = display(localize(A))
 size(A::SharedSparseMatrixCSC) = (A.m,A.n)
+size(A::SharedSparseMatrixCSC,i::Int) = size(A)[i]
 nfilled(A::SharedSparseMatrixCSC) = length(A.nzval)
 
 type SharedBilinearOperator{Tv,Ti<:Integer}
@@ -101,7 +102,7 @@ function At_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta
     A.m == length(x) || throw(DimensionMismatch(""))
     # the variable finished calls wait on the remote ref, ensuring all processes return before we proceed
     finished = @parallel (+) for col = 1:A.n
-        col_t_mul_B!(alpha, A, x, beta, y, [col])
+        col_t_mul_B!(alpha, A, x, beta, y, col)
     end
     y
 end
@@ -110,13 +111,29 @@ At_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = At_mul_B!(Base.shmem_fill(z
 Ac_mul_B!{T<:Real}(y::SharedArray{T}, A::SharedSparseMatrixCSC{T}, x::SharedArray{T}) = At_mul_B!(y, A, x)
 Ac_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = Ac_mul_B!(Base.shmem_fill(zero(eltype(A)),A.n), A, x)
 
+function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, i::Integer)
+    nzv = A.nzval
+    rv = A.rowval
+    zeroy = zero(eltype(y))
+    @inbounds begin
+            y[i] *= beta
+            tmp = zeroy
+            for j = A.colptr[i] : (A.colptr[i+1]-1)
+                tmp += nzv[j]*x[rv[j]]
+            end
+            y[i] += alpha*tmp
+    end
+    return 1 # finished
+end
+
 function col_t_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
     nzv = A.nzval
     rv = A.rowval
+    zeroy = zero(eltype(y))
     @inbounds begin
         for i in col_chunk
             y[i] *= beta
-            tmp = zero(eltype(y))
+            tmp = zeroy
             for j = A.colptr[i] : (A.colptr[i+1]-1)
                 tmp += nzv[j]*x[rv[j]]
             end
@@ -137,12 +154,11 @@ A_mul_B!(y::AbstractVector,A::SharedSparseMatrixCSC, x::AbstractVector) = (y[:] 
 ## Operator multiplication
 # we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally
 # conjugation is not implemented for bilinear operators
-Ac_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = Ac_mul_B!(alpha, L.A, x, beta, y) 
 Ac_mul_B!(y, L::SharedBilinearOperator, x) = Ac_mul_B!(y, L.A, x)
 Ac_mul_B(L::SharedBilinearOperator, x) = Ac_mul_B(L.A, x)
-At_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.A, x, beta, y) 
 At_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.A, x)
 At_mul_B(L::SharedBilinearOperator, x) = At_mul_B(L.A, x)
-A_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.AT, x, beta, y) 
+A_mul_B!(alpha::Number, L::SharedBilinearOperator, x, beta::Number, y) = At_mul_B!(one(eltype(x)), L.AT, x, one(eltype(y)), y)
 A_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.AT, x)
 *(L::SharedBilinearOperator,x) = At_mul_B(L.AT, x)
+
