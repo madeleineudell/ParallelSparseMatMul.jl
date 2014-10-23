@@ -5,12 +5,12 @@
 
 import
     Base.A_mul_B, Base.At_mul_B, Base.Ac_mul_B, Base.A_mul_B!, Base.At_mul_B!, Base.Ac_mul_B!, 
-    Base.localize, Base.size, Base.display
+    Base.sdata, Base.size, Base.display
 
 export
     SharedBilinearOperator, SharedSparseMatrixCSC, 
-    share, display, localize, operator, nfilled, size
-    A_mul_B, At_mul_B, Ac_mul_B, A_mul_B!, At_mul_B!, Ac_mul_B!,*
+    share, display, sdata, operator, nfilled, size,
+    A_mul_B, At_mul_B, Ac_mul_B, A_mul_B!, At_mul_B!, Ac_mul_B!, *
 
 type SharedSparseMatrixCSC{Tv,Ti<:Integer} <: AbstractSparseMatrix{Tv,Ti}
     m::Int
@@ -21,8 +21,8 @@ type SharedSparseMatrixCSC{Tv,Ti<:Integer} <: AbstractSparseMatrix{Tv,Ti}
     pids::AbstractVector{Int}
 end
 SharedSparseMatrixCSC(m,n,colptr,rowval,nzval;pids=workers()) = SharedSparseMatrixCSC(m,n,colptr,rowval,nzval,pids)
-localize(A::SharedSparseMatrixCSC) = SparseMatrixCSC(A.m,A.n,A.colptr.s,A.rowval.s,A.nzval.s)
-display(A::SharedSparseMatrixCSC) = display(localize(A))
+sdata(A::SharedSparseMatrixCSC) = SparseMatrixCSC(A.m,A.n,A.colptr.s,A.rowval.s,A.nzval.s)
+display(A::SharedSparseMatrixCSC) = display(sdata(A))
 size(A::SharedSparseMatrixCSC) = (A.m,A.n)
 nfilled(A::SharedSparseMatrixCSC) = length(A.nzval)
 
@@ -37,28 +37,32 @@ operator(A::SparseMatrixCSC,pids) = SharedBilinearOperator(A.m,A.n,share(A),shar
 operator(A::SparseMatrixCSC) = operator(A::SparseMatrixCSC,workers())
 operator(A::SharedSparseMatrixCSC) = SharedBilinearOperator(A.m,A.n,A,A',A.pids)
 ctranspose(L::SharedBilinearOperator) = SharedBilinearOperator(L.n,L.m,L.AT,L.A,L.pids)
-localize(L::SharedBilinearOperator) = localize(L.A)
+sdata(L::SharedBilinearOperator) = sdata(L.A)
 display(L::SharedBilinearOperator) = display(L.A)
 size(L::SharedBilinearOperator) = size(L.A)
 size(L::SharedBilinearOperator,i::Int) = size(L.A)[i]
 
 function share(a::AbstractArray;kwargs...)
     sh = SharedArray(typeof(a[1]),size(a);kwargs...)
-    sh.s[:] = a[:]
+    for i=1:length(a)
+        sh.s[i] = a[i]
+    end
     return sh
 end
 share(A::SparseMatrixCSC,pids::AbstractVector{Int}) = SharedSparseMatrixCSC(A.m,A.n,share(A.colptr,pids=pids),share(A.rowval,pids=pids),share(A.nzval,pids=pids),pids)
 share(A::SparseMatrixCSC) = share(A::SparseMatrixCSC,workers())
+share(A::SharedSparseMatrixCSC,pids::AbstractVector{Int}) = (pids==A.pids ? A : share(sdata(A),pids))
+share(A::SharedArray,pids::AbstractVector{Int}) = (pids==A.pids ? A : share(sdata(A),pids))
 
 # For now, we transpose in serial
 function ctranspose(A::SharedSparseMatrixCSC)
-    S = localize(A)
+    S = sdata(A)
     ST = ctranspose(S)
     return share(ST,A.pids)
 end
 
 function transpose(A::SharedSparseMatrixCSC)
-    S = localize(A)
+    S = sdata(A)
     ST = transpose(S)
     return share(ST,A.pids)
 end

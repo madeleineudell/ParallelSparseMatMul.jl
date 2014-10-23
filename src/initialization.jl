@@ -1,4 +1,4 @@
-export shspeye, shsprand, shsprandn
+export shspeye, shsprand, shsprandn, shmem_randsample
 
 ### Initialization functions
 # Todo allow initialization on only some of the participating workers (ie SharedSparse...(...; pids=pids)), when @parallel allows arguments to run on only a subset of workers
