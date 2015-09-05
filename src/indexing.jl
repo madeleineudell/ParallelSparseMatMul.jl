@@ -1,9 +1,7 @@
 #getindex(A::SharedSparseMatrixCSC, i::Integer) = getindex(A, ind2sub(size(A),i))
 
-import Base.getindex
-export getindex, getindex_cols
 
-getindex(A::SharedSparseMatrixCSC, I::(Integer,Integer)) = getindex(A, I[1], I[2])
+getindex(A::SharedSparseMatrixCSC, I::@compat(Tuple{Integer,Integer})) = getindex(A, I[1], I[2])
 
 function getindex{T}(A::SharedSparseMatrixCSC{T}, i0::Int, i1::Int)
     if !(1 <= i0 <= A.m && 1 <= i1 <= A.n); throw(BoundsError()); end
@@ -63,4 +61,3 @@ function getindex_cols{Tv,Ti}(A::SharedSparseMatrixCSC{Tv,Ti}, J::AbstractVector
 end
 
 ## setindex! not yet implemented, because can't splice a shared array
-

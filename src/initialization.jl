@@ -1,5 +1,3 @@
-export shspeye, shsprand, shsprandn, shmem_randsample
-
 ### Initialization functions
 # Todo allow initialization on only some of the participating workers (ie SharedSparse...(...; pids=pids)), when @parallel allows arguments to run on only a subset of workers
 # XXX verify entries are sorted correctly, so A'' == A
@@ -13,7 +11,7 @@ function shsprand(m,n,p; kwargs...)
     nnz = colptr[end]-1
     nzval = Base.shmem_rand(nnz; kwargs...)
     # multiplication will go faster if you sort these within each column...
-    rowval = shmem_randsample(nnz,1,m;sorted_within=colptr, kwargs...) 
+    rowval = shmem_randsample(nnz,1,m;sorted_within=colptr, kwargs...)
     return SharedSparseMatrixCSC(m,n,colptr,rowval,nzval)
 end
 
@@ -26,7 +24,7 @@ function shsprandn(m,n,p; kwargs...)
     end
     nnz = colptr[end]-1
     nzval = Base.shmem_randn(nnz; kwargs...)
-    rowval = shmem_randsample(nnz,1,m;sorted_within=colptr, kwargs...) 
+    rowval = shmem_randsample(nnz,1,m;sorted_within=colptr, kwargs...)
     return SharedSparseMatrixCSC(m,n,colptr,rowval,nzval)
 end
 

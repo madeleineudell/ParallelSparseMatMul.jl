@@ -3,14 +3,6 @@
 # implement A_mul_B* with normal vectors, not just shared arrays, for sharedsparsematrix
 # implement load balancing for multiplication
 
-import
-    Base.A_mul_B, Base.At_mul_B, Base.Ac_mul_B, Base.A_mul_B!, Base.At_mul_B!, Base.Ac_mul_B!, 
-    Base.sdata, Base.size, Base.display
-
-export
-    SharedBilinearOperator, SharedSparseMatrixCSC, 
-    share, display, sdata, operator, nfilled, size,
-    A_mul_B, At_mul_B, Ac_mul_B, A_mul_B!, At_mul_B!, Ac_mul_B!, *
 
 type SharedSparseMatrixCSC{Tv,Ti<:Integer} <: AbstractSparseMatrix{Tv,Ti}
     m::Int
@@ -84,7 +76,7 @@ function A_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta:
 end
 A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(one(eltype(x)), A, x, zero(eltype(y)), y)
 A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
-*(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
+*(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x)
 
 function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
     nzv = A.nzval
@@ -141,12 +133,12 @@ A_mul_B!(y::AbstractVector,A::SharedSparseMatrixCSC, x::AbstractVector) = (y[:] 
 ## Operator multiplication
 # we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally
 # conjugation is not implemented for bilinear operators
-Ac_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = Ac_mul_B!(alpha, L.A, x, beta, y) 
+Ac_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = Ac_mul_B!(alpha, L.A, x, beta, y)
 Ac_mul_B!(y, L::SharedBilinearOperator, x) = Ac_mul_B!(y, L.A, x)
 Ac_mul_B(L::SharedBilinearOperator, x) = Ac_mul_B(L.A, x)
-At_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.A, x, beta, y) 
+At_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.A, x, beta, y)
 At_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.A, x)
 At_mul_B(L::SharedBilinearOperator, x) = At_mul_B(L.A, x)
-A_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.AT, x, beta, y) 
+A_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.AT, x, beta, y)
 A_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.AT, x)
 *(L::SharedBilinearOperator,x) = At_mul_B(L.AT, x)
