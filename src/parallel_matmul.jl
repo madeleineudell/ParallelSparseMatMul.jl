@@ -3,14 +3,6 @@
 # implement A_mul_B* with normal vectors, not just shared arrays, for sharedsparsematrix
 # implement load balancing for multiplication
 
-import
-    Base.A_mul_B, Base.At_mul_B, Base.Ac_mul_B, Base.A_mul_B!, Base.At_mul_B!, Base.Ac_mul_B!, 
-    Base.sdata, Base.size, Base.display
-
-export
-    SharedBilinearOperator, SharedSparseMatrixCSC, 
-    share, display, sdata, operator, nfilled, size,
-    A_mul_B, At_mul_B, Ac_mul_B, A_mul_B!, At_mul_B!, Ac_mul_B!, *
 
 type SharedSparseMatrixCSC{Tv,Ti<:Integer} <: AbstractSparseMatrix{Tv,Ti}
     m::Int
@@ -75,18 +67,23 @@ end
 function A_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray)
     A.n == length(x) || throw(DimensionMismatch(""))
     A.m == length(y) || throw(DimensionMismatch(""))
-    @parallel for i = 1:A.m; y[i] *= beta; end
-    # the variable finished calls wait on the remote ref, ensuring all processes return before we proceed
-    finished = @parallel (+) for col = 1 : A.n
-        col_mul_B!(alpha, A, x, beta, y, [col])
+    @sync @parallel for i = 1:A.m; y[i] *= beta; end
+
+    res = @sync @parallel (+) for col = 1 : A.n
+        addtoy = zeros(typeof(beta), A.m)
+        col_mul_B!(alpha, A, x, beta, addtoy, [col])
+        addtoy
+    end
+    for (i,v) in enumerate(res)
+        y[i] = v
     end
     y
 end
 A_mul_B!(y::SharedArray, A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(one(eltype(x)), A, x, zero(eltype(y)), y)
 A_mul_B(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B!(Base.shmem_fill(zero(eltype(A)),A.m), A, x)
-*(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x) 
+*(A::SharedSparseMatrixCSC, x::SharedArray) = A_mul_B(A, x)
 
-function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::SharedArray, col_chunk::Array)
+function col_mul_B!(alpha::Number, A::SharedSparseMatrixCSC, x::SharedArray, beta::Number, y::Array, col_chunk::Array)
     nzv = A.nzval
     rv = A.rowval
     for col in col_chunk
@@ -141,12 +138,24 @@ A_mul_B!(y::AbstractVector,A::SharedSparseMatrixCSC, x::AbstractVector) = (y[:] 
 ## Operator multiplication
 # we implement all multiplication by multiplying by the transpose, which is faster because it parallelizes more naturally
 # conjugation is not implemented for bilinear operators
-Ac_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = Ac_mul_B!(alpha, L.A, x, beta, y) 
+Ac_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = Ac_mul_B!(alpha, L.A, x, beta, y)
 Ac_mul_B!(y, L::SharedBilinearOperator, x) = Ac_mul_B!(y, L.A, x)
 Ac_mul_B(L::SharedBilinearOperator, x) = Ac_mul_B(L.A, x)
-At_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.A, x, beta, y) 
+At_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.A, x, beta, y)
 At_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.A, x)
 At_mul_B(L::SharedBilinearOperator, x) = At_mul_B(L.A, x)
-A_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.AT, x, beta, y) 
+A_mul_B!(alpha, L::SharedBilinearOperator, x, beta, y) = At_mul_B!(alpha, L.AT, x, beta, y)
 A_mul_B!(y, L::SharedBilinearOperator, x) = At_mul_B!(y, L.AT, x)
 *(L::SharedBilinearOperator,x) = At_mul_B(L.AT, x)
+
+SparseMatrixCSC(s::SharedSparseMatrixCSC) =
+    SparseMatrixCSC(s.m,s.n,Array(s.colptr),Array(s.rowval),Array(s.nzval))
+
+==(a::SparseMatrixCSC, b::SharedSparseMatrixCSC) =
+    (a.m == b.m &&
+    a.n == b.n &&
+    a.colptr == b.colptr &&
+    a.rowval == b.rowval &&
+    a.nzval == b.nzval)
+
+==(a::SharedSparseMatrixCSC, b::SparseMatrixCSC) = ==(b,a)
