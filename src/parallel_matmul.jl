@@ -34,8 +34,8 @@ display(L::SharedBilinearOperator) = display(L.A)
 size(L::SharedBilinearOperator) = size(L.A)
 size(L::SharedBilinearOperator,i::Int) = size(L.A)[i]
 
-function share(a::AbstractArray;kwargs...)
-    sh = SharedArray(typeof(a[1]),size(a);kwargs...)
+function share{T}(a::AbstractArray{T};kwargs...)
+    sh = SharedArray(T,size(a);kwargs...)
     for i=1:length(a)
         sh.s[i] = a[i]
     end
